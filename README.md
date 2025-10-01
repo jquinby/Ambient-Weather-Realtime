@@ -19,6 +19,8 @@ A lightweight, mobile-optimized web interface for Ambient Weather personal weath
 ### Light Mode
 Clean, modern interface with excellent readability
 
+![alt text](https://github.com/jquinby/Ambient-Weather-Realtime/blob/main/light_mode_screenshot.jpg?raw=true)
+
 ### Dark Mode
 Automatically switches based on device settings
 
