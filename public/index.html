@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ambient Weather Station</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-cyan: #00ffff;
+            --accent-green: #00ff00;
+            --accent-yellow: #ffff00;
+            --accent-red: #ff4444;
+            --border-color: #404040;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.4;
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .header {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            text-align: center;
+        }
+
+        .divider {
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 12px;
+        }
+
+        .data-grid {
+            display: grid;
+            gap: 6px;
+        }
+
+        .data-row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(64, 64, 64, 0.3);
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .label {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .value {
+            color: var(--text-primary);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pressure-trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .trend-indicator {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .trend-rising { color: var(--accent-green); }
+        .trend-falling { color: var(--accent-red); }
+        .trend-steady { color: var(--accent-yellow); }
+        .trend-insufficient { color: var(--text-secondary); }
+
+        .trend-rate {
+            color: var(--accent-cyan);
+            font-size: 0.85em;
+        }
+
+        .battery-good { color: var(--accent-green); }
+        .battery-low { color: var(--accent-red); }
+
+        .connection-status {
+            text-align: center;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 0.9em;
+        }
+
+        .connected {
+            background: rgba(0, 255, 0, 0.1);
+            color: var(--accent-green);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+        }
+
+        .disconnected {
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--accent-red);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .last-update {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.8em;
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .wind-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .uv-index {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .uv-low { background: rgba(0, 255, 0, 0.2); color: var(--accent-green); }
+        .uv-moderate { background: rgba(255, 255, 0, 0.2); color: var(--accent-yellow); }
+        .uv-high { background: rgba(255, 165, 0, 0.2); color: #ffa500; }
+        .uv-very-high { background: rgba(255, 68, 68, 0.2); color: var(--accent-red); }
+        .uv-extreme { background: rgba(128, 0, 128, 0.2); color: #ff00ff; }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+                min-height: 100vh;
+                padding: 12px;
+            }
+            
+            .data-row {
+                grid-template-columns: 100px 1fr;
+            }
+            
+            .label {
+                font-size: 0.8em;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Ambient Weather Station</div>
+        <div class="divider"></div>
+        
+        <div id="connectionStatus" class="connection-status disconnected">
+            Connecting...
+        </div>
+        
+        <div id="weatherData" class="loading">
+            Waiting for data...
+        </div>
+        
+        <div id="lastUpdate" class="last-update" style="display: none;">
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let lastDataTime = null;
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('connectionStatus', (status) => {
+            const statusElement = document.getElementById('connectionStatus');
+            if (status.connected) {
+                statusElement.textContent = 'Connected to Ambient Weather';
+                statusElement.className = 'connection-status connected';
+            } else {
+                statusElement.textContent = 'Disconnected from Ambient Weather';
+                statusElement.className = 'connection-status disconnected pulse';
+            }
+        });
+
+        socket.on('weatherData', (data) => {
+            lastDataTime = new Date();
+            displayWeatherData(data);
+        });
+
+        function displayWeatherData(data) {
+            const container = document.getElementById('weatherData');
+            
+            let html = '<div class="data-grid">';
+            
+            // Temperature data
+            html += createDataRow('Temperature', formatValue(data.tempf, '° F'));
+            html += createDataRow('Humidity', formatValue(data.humidity, ' %'));
+            html += createDataRow('Feels Like', formatValue(data.feelsLike, '° F'));
+            html += createDataRow('Dew Point', formatValue(data.dewPoint, '° F'));
+            
+            // UV Index with color coding
+            if (data.uv !== undefined) {
+                const uvClass = getUVClass(data.uv);
+                html += createDataRow('UV Index', `<span class="uv-index ${uvClass}">${data.uv}</span>`);
+            }
+            
+            // Solar radiation
+            if (data.solarradiation !== undefined) {
+                html += createDataRow('Solar Rad', formatValue(data.solarradiation, ' W/m²'));
+            }
+            
+            // Indoor temperatures
+            html += createDataRow('Downstairs', `${formatValue(data.tempinf, '°')} / ${formatValue(data.humidityin, ' %')}`);
+            
+            if (data.temp2f !== undefined) {
+                html += createDataRow('Upstairs', `${formatValue(data.temp2f, '°')} / ${formatValue(data.humidity2, ' %')}`);
+            }
+            
+            // Barometer with trend
+            if (data.baromrelin !== undefined) {
+                const pressureHtml = createPressureDisplay(data.baromrelin, data.pressureTrend);
+                html += createDataRow('Barometer', pressureHtml);
+            }
+            
+            // Wind data
+            const windHtml = createWindDisplay(data);
+            html += createDataRow('Wind Speed', windHtml);
+            
+            if (data.windDirection) {
+                let windDirHtml = data.windDirection;
+                if (data.windDirectionAvg) {
+                    windDirHtml += `, avg ${data.windDirectionAvg}`;
+                }
+                html += createDataRow('Wind Dir', windDirHtml);
+            }
+            
+            // Rain
+            html += createDataRow('Daily Rain', formatValue(data.dailyrainin, ' in'));
+            
+            // Battery
+            if (data.battout !== undefined) {
+                const batteryClass = data.battout === 1 ? 'battery-good' : 'battery-low';
+                const batteryText = data.battout === 1 ? 'Good' : 'Low';
+                html += createDataRow('Battery', `<span class="${batteryClass}">${batteryText}</span>`);
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+            
+            // Update timestamp
+            const updateElement = document.getElementById('lastUpdate');
+            updateElement.textContent = `Last Update: ${new Date().toLocaleString()}`;
+            updateElement.style.display = 'block';
+        }
+
+        function createDataRow(label, value) {
+            return `
+                <div class="data-row">
+                    <div class="label">${label}</div>
+                    <div class="value">${value}</div>
+                </div>
+            `;
+        }
+
+        function formatValue(value, unit) {
+            if (value === undefined || value === null) {
+                return 'N/A';
+            }
+            return value + unit;
+        }
+
+        function createPressureDisplay(pressure, trend) {
+            let html = `${pressure.toFixed(3)} inHg `;
+            
+            if (trend.trend === "INSUFFICIENT_DATA") {
+                html += '<span class="trend-insufficient">(collecting data...)</span>';
+            } else {
+                let indicator = '';
+                let trendClass = '';
+                
+                switch (trend.trend) {
+                    case 'RISING':
+                        indicator = Math.abs(trend.changeRate) > 0.06 ? '▲▲' : '▲';
+                        trendClass = 'trend-rising';
+                        break;
+                    case 'FALLING':
+                        indicator = Math.abs(trend.changeRate) > 0.06 ? '▼▼' : '▼';
+                        trendClass = 'trend-falling';
+                        break;
+                    case 'STEADY':
+                        indicator = '▷';
+                        trendClass = 'trend-steady';
+                        break;
+                }
+                
+                html += `<span class="pressure-trend">`;
+                html += `<span class="trend-indicator ${trendClass}">${indicator}</span>`;
+                html += `<span class="trend-rate">(${trend.changeRate >= 0 ? '+' : ''}${trend.changeRate.toFixed(3)}/hr)</span>`;
+                html += `</span>`;
+            }
+            
+            return html;
+        }
+
+        function createWindDisplay(data) {
+            let html = `${formatValue(data.windspeedmph, ' mph')}`;
+            
+            if (data.windgustmph !== undefined) {
+                html += `, gust ${data.windgustmph}`;
+            }
+            
+            if (data.maxdailygust !== undefined) {
+                html += `, max ${data.maxdailygust}`;
+            }
+            
+            return html;
+        }
+
+        function getUVClass(uv) {
+            if (uv <= 2) return 'uv-low';
+            if (uv <= 5) return 'uv-moderate';
+            if (uv <= 7) return 'uv-high';
+            if (uv <= 10) return 'uv-very-high';
+            return 'uv-extreme';
+        }
+
+        // Prevent iOS zoom on double tap
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>

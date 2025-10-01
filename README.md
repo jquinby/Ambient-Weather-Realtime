@@ -1,6 +1,6 @@
 # Ambient Weather Web Interface
 
-A lightweight, mobile-optimized web interface for Ambient Weather personal weather stations. Designed to run on a Raspberry Pi with real-time WebSocket connections and automatic dark mode support.
+A lightweight, mobile-optimized web interface for Ambient Weather personal weather stations. Designed to run on a Raspberry Pi with real-time WebSocket connections and automatic dark mode support. Why did I do this? I wanted to see the current data from my weather station via Ambient's realtime API. I already have something that works from the CLI via ncurses (see bottom of this file for a link), and I wanted something similar that I could access with my phone. The first version just re-created the look of the terminal app, which was functionally okbut sort of ugly. This was the results of a few iterations with Claude and I think it turned out pretty good. Lightweight, current data. 
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
