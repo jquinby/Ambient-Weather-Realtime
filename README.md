@@ -36,7 +36,7 @@ Automatically switches based on device settings
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ambient-weather-web.git
+git clone https://github.com/jquinby/ambient-weather-web.git
 cd ambient-weather-web
 ```
 
